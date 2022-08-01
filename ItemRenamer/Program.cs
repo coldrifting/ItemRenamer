@@ -5,6 +5,7 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Plugins.Aspects;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 namespace ItemRenamer
 {
@@ -58,14 +59,18 @@ namespace ItemRenamer
         {
             // First merge default configs
             JObject? finalJson = new();
-            if (Directory.Exists(state.DefaultSettingsDataPath + "\\" + "Default"))
+            if (Directory.Exists(state.ExtraSettingsDataPath + "\\Default"))
             {
-                string[] defaultConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath + "\\" + "Default");
+                string[] defaultConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath + "\\Default");
                 Array.Sort(defaultConfigFiles);
 
                 if (defaultConfigFiles.Length == 0)
                 {
                     Console.WriteLine("Warning: Unable to find default naming rules");
+                }
+                else
+                {
+                    Console.WriteLine("Adding default naming rules");
                 }
 
                 foreach (string path in defaultConfigFiles)
@@ -76,9 +81,9 @@ namespace ItemRenamer
             }
 
             // Then merge custom user settings
-            if (Directory.Exists(state.DefaultSettingsDataPath))
+            if (Directory.Exists(state.ExtraSettingsDataPath))
             {
-                string[] userConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath + "");
+                string[] userConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath);
                 Array.Sort(userConfigFiles);
 
                 foreach (string path in userConfigFiles)
@@ -90,7 +95,7 @@ namespace ItemRenamer
             }
 
             // Store the settings in a dictionary for fast access later on
-            Dictionary<string, string>? mydictionary = finalJson.ToObject<Dictionary<string, string>>();
+            Dictionary<string, string>? mydictionary = JsonConvert.DeserializeObject<Dictionary<string, string>>(finalJson.ToString());
             if (mydictionary != null)
             {
                 foreach (KeyValuePair<string, string> kv in mydictionary)
