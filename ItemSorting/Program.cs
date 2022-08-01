@@ -1,14 +1,12 @@
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Synthesis;
 using Mutagen.Bethesda.Skyrim;
-using Mutagen.Bethesda.Plugins.Exceptions;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
 using Mutagen.Bethesda.Plugins;
-using Mutagen.Bethesda.Plugins.Order;
-using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Records;
+using Mutagen.Bethesda.Plugins.Aspects;
+using Newtonsoft.Json.Linq;
 
-namespace ItemSorting
+namespace ItemRenamer
 {
     public class Program
     {
@@ -18,156 +16,81 @@ namespace ItemSorting
         {
             return await SynthesisPipeline.Instance
                 .AddPatch<ISkyrimMod, ISkyrimModGetter>(RunPatch)
-                .SetTypicalOpen(GameRelease.SkyrimSE, "SortedNames.esp")
+                .SetTypicalOpen(GameRelease.SkyrimSE, "ItemRenamer.esp")
                 .Run(args);
         }
 
         public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
-            if (!BuildDatabase(state))
-            {
-                throw new InvalidDataException("Unable to read the input naming rules file. Please check the formating.");
-            }
+            BuildDatabase(state);
 
-            // Ammuntion
-            foreach (IAmmunitionGetter? item in state.LoadOrder.ListedOrder.Ammunition().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IAmmunition, IAmmunitionGetter>(state.LinkCache, out var winningItemContext)) continue;
+            // Run the patch for each record type
+            ProcessNames<IAmmunitionGetter>(state);
+            ProcessNames<IArmorGetter>(state);
+            ProcessNames<IBookGetter>(state);
+            ProcessNames<IIngestibleGetter>(state);
+            ProcessNames<IIngredientGetter>(state);
+            ProcessNames<ILightGetter>(state);
+            ProcessNames<IMiscItemGetter>(state);
+            ProcessNames<IScrollGetter>(state);
+            ProcessNames<ISoulGemGetter>(state);
+            ProcessNames<ISpellGetter>(state);
+            ProcessNames<IWeaponGetter>(state);
+        }
 
-                if (dictionary.ContainsKey(item.FormKey))
+        // Generic method to patch a specific record that is part of a specified getter interface
+        public static void ProcessNames<TMajor>(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
+            where TMajor : IMajorRecordGetter, INamedGetter
+        {
+            foreach (var item in state.LoadOrder.PriorityOrder.WinningOverrideContexts<ISkyrimMod, ISkyrimModGetter>(state.LinkCache, typeof(TMajor)))
+            {
+                if (dictionary.TryGetValue(item.Record.FormKey, out var replacementName))
                 {
-                    IAmmunition winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Armor
-            foreach (IArmorGetter? item in state.LoadOrder.ListedOrder.Armor().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IArmor, IArmorGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IArmor winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Books
-            foreach (IBookGetter? item in state.LoadOrder.ListedOrder.Book().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IBook, IBookGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IBook winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Ingestible
-            foreach (IIngestibleGetter? item in state.LoadOrder.ListedOrder.Ingestible().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IIngestible, IIngestibleGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IIngestible winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Ingredients
-            foreach (IIngredientGetter? item in state.LoadOrder.ListedOrder.Ingredient().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IIngredient, IIngredientGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IIngredient winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Lights
-            foreach (ILightGetter? item in state.LoadOrder.ListedOrder.Light().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, ILight, ILightGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    ILight winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Misc
-            foreach (IMiscItemGetter? item in state.LoadOrder.ListedOrder.MiscItem().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IMiscItem, IMiscItemGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IMiscItem winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Scrolls
-            foreach (IScrollGetter? item in state.LoadOrder.ListedOrder.Scroll().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IScroll, IScrollGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IScroll winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Soul Gems
-            foreach (ISoulGemGetter? item in state.LoadOrder.ListedOrder.SoulGem().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, ISoulGem, ISoulGemGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    ISoulGem winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Weapons
-            foreach (IWeaponGetter? item in state.LoadOrder.ListedOrder.Weapon().WinningOverrides())
-            {
-                if (!item.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, IWeapon, IWeaponGetter>(state.LinkCache, out var winningItemContext)) continue;
-
-                if (dictionary.ContainsKey(item.FormKey))
-                {
-                    IWeapon winningRecord = winningItemContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(item.FormKey);
-                }
-            }
-
-            // Spells
-            foreach (ISpellGetter? spell in state.LoadOrder.ListedOrder.Spell().WinningOverrides())
-            {
-                if (!spell.ToLink().TryResolveContext<ISkyrimMod, ISkyrimModGetter, ISpell, ISpellGetter>(state.LinkCache, out var winningSpellContext)) continue;
-
-                if (dictionary.ContainsKey(spell.FormKey))
-                {
-                    ISpell winningRecord = winningSpellContext.GetOrAddAsOverride(state.PatchMod);
-                    winningRecord.Name = dictionary.GetValueOrDefault(spell.FormKey);
+                    var winningRecord = (INamed)item.GetOrAddAsOverride(state.PatchMod);
+                    winningRecord.Name = replacementName;
                 }
             }
         }
 
 
         // Build the dictionary to map formIDs to Names
-        private static bool BuildDatabase(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
+        private static void BuildDatabase(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
-            string namingRulesRawText = File.ReadAllText(state.RetrieveConfigFile("NamingRules.json"));
-            var mydictionary = JsonConvert.DeserializeObject<Dictionary<string, string>>(namingRulesRawText);
+            // First merge default configs
+            JObject? finalJson = new();
+            if (Directory.Exists(state.DefaultSettingsDataPath + "\\" + "Default"))
+            {
+                string[] defaultConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath + "\\" + "Default");
+                Array.Sort(defaultConfigFiles);
+
+                if (defaultConfigFiles.Length == 0)
+                {
+                    Console.WriteLine("Warning: Unable to find default naming rules");
+                }
+
+                foreach (string path in defaultConfigFiles)
+                {
+                    if (File.Exists(path))
+                        finalJson.Merge(JObject.Parse(File.ReadAllText(path)));
+                }
+            }
+
+            // Then merge custom user settings
+            if (Directory.Exists(state.DefaultSettingsDataPath))
+            {
+                string[] userConfigFiles = Directory.GetFiles(state.ExtraSettingsDataPath + "");
+                Array.Sort(userConfigFiles);
+
+                foreach (string path in userConfigFiles)
+                {
+                    Console.WriteLine($"Adding user defined naming rule - {Path.GetFileName(path)}");
+                    if (File.Exists(path))
+                        finalJson.Merge(JObject.Parse(File.ReadAllText(path)));
+                }
+            }
+
+            // Store the settings in a dictionary for fast access later on
+            Dictionary<string, string>? mydictionary = finalJson.ToObject<Dictionary<string, string>>();
             if (mydictionary != null)
             {
                 foreach (KeyValuePair<string, string> kv in mydictionary)
@@ -178,11 +101,6 @@ namespace ItemSorting
                         dictionary.Add(formKey, kv.Value);
                     }
                 }
-                return true;
-            }
-            else
-            {
-                return false;
             }
         }
     }
