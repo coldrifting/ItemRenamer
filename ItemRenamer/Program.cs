@@ -88,9 +88,11 @@ namespace ItemRenamer
 
                 foreach (string path in userConfigFiles)
                 {
-                    Console.WriteLine($"Adding user defined naming rule - {Path.GetFileName(path)}");
                     if (File.Exists(path))
+                    {
+                        Console.WriteLine($"Adding user defined naming rule - {Path.GetFileName(path)}");
                         finalJson.Merge(JObject.Parse(File.ReadAllText(path)));
+                    }
                 }
             }
 
