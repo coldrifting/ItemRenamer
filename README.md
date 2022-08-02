@@ -1,5 +1,5 @@
 # ItemRenamer
-A Synthesis Patcher for Skyrim that adjusts item and spell names to match those specified in a user configurable file, usually to facilitate better inventory sorting.
+A Synthesis Patcher for Skyrim that adjusts item and spell names to match those specified in one or more user configurable files, usually to facilitate better inventory sorting.
 
 A default config file is provided with support for the vanilla game and DLC. I also include definitions for a few mods that I personally use.
 
